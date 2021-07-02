@@ -492,10 +492,10 @@ void inwardAM(std::vector<double> &f, std::vector<double> &g,
   const auto c2 = 1.0 / alpha2;
   const auto ka2 = (double)(ka * ka);
 
-  const auto lambda = std::sqrt(-en * (2.0 * m_MU + en * alpha2));
+  const auto lambda = std::sqrt(-en * (2.0 + en * alpha2 / m_MU));
   const auto zeta = -v[pinf] * r[pinf];
   const auto zeta2 = zeta * zeta;
-  const auto sigma = (1.0 * m_MU + en * alpha2) * (zeta / lambda);
+  const auto sigma = (m_MU + en * alpha2) * (zeta / lambda);
   const auto Ren = en + m_MU * c2; // total relativistic energy
 
   // Generates the expansion coeficients for asymptotic wf up to order nx
@@ -512,7 +512,7 @@ void inwardAM(std::vector<double> &f, std::vector<double> &g,
   }
 
   // Generates last `AMO' points for P and Q [actually AMO+1?]
-  const double f1 = std::sqrt(1.0 * m_MU + en * alpha2 * 0.5);
+  const double f1 = std::sqrt(1.0 + en * alpha2 * 0.5 / m_MU);
   const double f2 = std::sqrt(-en * 0.5) * alpha;
   for (int i = pinf; i >= (pinf - Param::AMO); i--) {
     const double rfac = std::pow(r[i], sigma) * std::exp(-lambda * r[i]);

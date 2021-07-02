@@ -520,7 +520,8 @@ double Wavefunction::enGuessCore(int n, int l) const
 double Wavefunction::enGuessVal(int n, int ka) const
 // Energy guess for valence states. Not perfect, good enough
 {
-  return -0.5 * 200.0 * m_nuclear.z * m_nuclear.z / std::pow(n, 2);
+  const double m_MU = 206.7682830;
+  return -0.5 * m_MU * m_nuclear.z * m_nuclear.z / std::pow(n, 2);
   const int maxn = maxCore_n();
   const int l = AtomData::l_k(ka);
   const int dn = n - maxn;

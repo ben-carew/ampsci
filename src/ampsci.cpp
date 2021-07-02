@@ -116,8 +116,8 @@ void ampsci(const IO::InputBlock &input) {
                   {atom_Z, atom_A, nuc_type, rrms, t_skin}, var_alpha);
 
   for (int n = 1; n < 6; n++) {
-    auto eng = -0.5 * atom_Z * atom_Z / (n * n) * 200.0;
-    std::cout << eng << "\n";
+    auto eng = -0.5 * atom_Z * atom_Z / (n * n) * 206.7682830;
+    // std::cout << eng << "\n";
     wf.solveNewValence(n, -1, eng, -16);
   }
   wf.printValence();
