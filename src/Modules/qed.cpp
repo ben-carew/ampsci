@@ -67,16 +67,22 @@ void QED(const IO::InputBlock &input, const Wavefunction &wf) {
     wf_SE.radiativePotential({0.0, 1.0, 1.0, 1.0, 0.0}, 15.0, scale_rN, x_spd);
   }
 
+  std::cout << __LINE__ << std::endl;
+
   // Do Hartree-Fock on new wavefunctions
   const auto wfhf = wf.getHF();
   if (!wf.core.empty()) {
     std::cout << "HF, including VP, SE: " << HF::parseMethod(wfhf->method())
               << "\n";
   }
-  wf_VP.solve_core(HF::parseMethod(wfhf->method()), wfhf->x_Breit(),
-                        wf.coreConfiguration());
-  wf_SE.solve_core(HF::parseMethod(wfhf->method()), wfhf->x_Breit(),
-                        wf.coreConfiguration());
+  if (wfhf) {
+    wf_VP.solve_core(HF::parseMethod(wfhf->method()), wfhf->x_Breit(),
+                     wf.coreConfiguration());
+    wf_SE.solve_core(HF::parseMethod(wfhf->method()), wfhf->x_Breit(),
+                     wf.coreConfiguration());
+  }
+
+  std::cout << __LINE__ << std::endl;
 
   if (!coreQED) {
     std::cout << "no core QED; add QED _after_ core HartreeFock\n";
@@ -289,10 +295,14 @@ void QED(const IO::InputBlock &input, const Wavefunction &wf) {
                   << ", b=" << b_vertex << "\n";
       }
 
+      // This will include Uehling into Magnetic loop:
+      // const auto vx_vp = ExternalField::calcMatrixElements(
+      //     wf_VP.valence, h_MLVP.get(), nullptr, 0.0, false, diagonal_only);
+      // This will NOT include Uehling into Magnetic loop:
       const auto vx_vp = ExternalField::calcMatrixElements(
-          wf_VP.valence, h_MLVP.get(), nullptr, 0.0, false, diagonal_only);
+          wf.valence, h_MLVP.get(), nullptr, 0.0, false, diagonal_only);
       const auto vx_se = ExternalField::calcMatrixElements(
-          wf_VP.valence, hVertexQED.get(), nullptr, 0.0, false, diagonal_only);
+          wf_SE.valence, hVertexQED.get(), nullptr, 0.0, false, diagonal_only);
 
       std::cout
           << "\n             h(0)         d(MLVP)       d(SEvx)       sum\n";
