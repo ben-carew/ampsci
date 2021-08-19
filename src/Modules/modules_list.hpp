@@ -2,6 +2,7 @@
 // Add new module includes here:
 // (Modules don't _need_ to be in Modules/ directory
 #include "DMionisation/Module_atomicKernal.hpp"
+#include "Modules/AKtests.hpp"
 #include "Modules/HFAnomaly.hpp"
 #include "Modules/continuum.hpp"
 #include "Modules/exampleModule.hpp"
@@ -49,6 +50,7 @@ static const std::vector<std::pair<
                 {"structureRad", &structureRad},
                 {"fieldShift", &fieldShift},
                 {"continuum", &continuum},
+                {"AKtests", &AKtests},
                 {"exampleModule", &exampleModule}};
 
 } // namespace Module
