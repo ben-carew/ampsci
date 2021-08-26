@@ -143,7 +143,7 @@ int akReadWrite(const std::string &fname, bool write,
 
 //******************************************************************************
 int calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
-                  std::vector<std::vector<std::vector<double>>> &jLqr_f,
+                  const std::vector<std::vector<std::vector<double>>> &jLqr_f,
                   std::vector<float> &AK_nk_q, double)
 // Calculates the atomic factor for a given core state (is) and energy.
 // Note: dE = I + ec is depositied energy, not cntm energy
@@ -175,6 +175,7 @@ int calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
   // L and lc are summed, not stored indevidually
   for (int L = 0; L <= max_L; L++) {
     for (const auto &phic : cntm.orbitals) {
+      std::cout << phic.en() << "\n";
       int kc = phic.k;
       double dC_Lkk = CLkk(L, k, kc);
       if (dC_Lkk == 0)
@@ -232,6 +233,16 @@ int calculateKpw_nk(const Wavefunction &wf, std::size_t nk, double dE,
 }
 
 //******************************************************************************
+
+std::vector<std::vector<std::vector<double>>>
+sphericalBesselTable(int max_L, const std::vector<double> &q_array,
+                     const std::vector<double> &r) {
+  //
+  std::vector<std::vector<std::vector<double>>> jLqr_f;
+  sphericalBesselTable(jLqr_f, max_L, q_array, r);
+  return jLqr_f;
+}
+
 void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
                           int max_L, const std::vector<double> &q_array,
                           const std::vector<double> &r)
@@ -274,10 +285,13 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
           tmp /= (num_extra + 1);
         }
         jLqr_f[L][iq][ir] = tmp;
+        std::cout << "jLqr_f = " << tmp << '\n';
       }
     }
   }
   std::cout << "done\n";
 }
+
+void addThirty(std::vector<int> &vect) { vect.push_back(30); }
 
 } // namespace AKF

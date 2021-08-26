@@ -18,15 +18,20 @@ int akReadWrite(const std::string &fname, bool write,
                 double &dEmin, double &dEmax);
 
 int calculateK_nk(const Wavefunction &wf, std::size_t nk, int max_L, double dE,
-                  std::vector<std::vector<std::vector<double>>> &jLqr_f,
+                  const std::vector<std::vector<std::vector<double>>> &jLqr_f,
                   std::vector<float> &K_nk, double Zeff = -1);
 
 int calculateKpw_nk(const Wavefunction &wf, std::size_t nk, double dE,
                     std::vector<std::vector<double>> &jl_qr,
                     std::vector<float> &K_nk);
 
+std::vector<std::vector<std::vector<double>>>
+sphericalBesselTable(int max_L, const std::vector<double> &q_array,
+                     const std::vector<double> &r);
 void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
                           int max_L, const std::vector<double> &q_array,
                           const std::vector<double> &r);
+
+void addThirty(std::vector<int> &vect);
 
 } // namespace AKF
