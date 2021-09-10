@@ -4,10 +4,15 @@
 #include "Physics/PhysConst_constants.hpp" // For GHz unit conversion
 #include "Wavefunction/Wavefunction.hpp"
 
+const double AUMEV = PhysConst::c / PhysConst::m_e_MeV;
+
 namespace Module {
 
 void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   std::cout << "\nAK tests module:\n\n";
+
+  std::ofstream myfile;
+  myfile.open("K_nk.txt");
 
   // // Some test outputs for practice
   // int value = input.get("testinput",0);
@@ -19,17 +24,16 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   //   std::cout << "size = " << v.size() << '\n';
   // std::cout << "value = " << value << '\n';
 
-  // std::size_t is = 0;
-  int max_L = input.get("max_L", 0);
-  double dE = input.get("dE", 10.0);
-  // std::vector<std::vector<std::vector<double>>> jLqr_f;
-  double Zeff = input.get("Zeff", -1);
+  const int max_L = input.get("max_L", 0);
+  const double dE = input.get("dE", 0);
 
-  const std::vector<double> q_array{1, 2, 3, 4, 5};
+  const size_t n = 100;
+  const int q_min = 1;
+  const int q_max = 1000;
+  auto q_array = AKF::LogVect(q_min, q_max, n);
   std::vector<float> K_nk(q_array.size());
 
   // const std::vector<double> r{1,2,3,4,5};
-  // wf.rgrid->r;
 
   // int calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L,
   //                   double dE,
@@ -47,9 +51,9 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
 
   // loop through the core states:
   std::cout << "Core: \n";
-  for (const auto &Fc : wf.core) {
-    std::cout << Fc.symbol() << " " << Fc.en() << "\n";
-  }
+  // for (const auto &Fc : wf.core) {
+  //   std::cout << Fc.symbol() << " " << Fc.en() << "\n";
+  // }
 
   for (std::size_t i = 0; i < wf.core.size(); ++i) {
     std::cout << wf.core[i].symbol() << " " << wf.core[i].en() << "\n";
@@ -58,15 +62,16 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
     }
   }
 
-  for (auto k : K_nk) {
-    std::cout << k << '\n';
+  // std::cout << "Atomic Kernel K_nk" << '\n';
+  for (std::size_t i = 0; i < q_array.size(); i++) {
+    myfile << q_array[i] / AUMEV << ' ' << K_nk[i] << '\n';
   }
+  myfile.close();
 
-  // // loop through the basis states:
+  // loop through the basis states:
   // std::cout << "Basis: \n";
   // for (const auto &Fb : wf.basis) {
   //   std::cout << Fb.symbol() << " " << Fb.en() << "\n";
   // }
-}
-
+} // AKtests
 } // namespace Module

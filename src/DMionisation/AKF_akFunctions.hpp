@@ -34,4 +34,6 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
 
 void addThirty(std::vector<int> &vect);
 
+std::vector<double> LogVect(int min, int max, int num_points);
+
 } // namespace AKF

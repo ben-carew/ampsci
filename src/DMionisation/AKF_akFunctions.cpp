@@ -12,6 +12,8 @@
 
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 
+#define AUMEV 0.00002721139
+
 namespace AKF {
 
 //******************************************************************************
@@ -172,7 +174,7 @@ int calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
   double x_ocf = psi.occ_frac(); // occupancy fraction. Usually 1
 
   // Generate AK for each L, lc, and q
-  // L and lc are summed, not stored indevidually
+  // L and lc are summed, not stored individually
   for (int L = 0; L <= max_L; L++) {
     for (const auto &phic : cntm.orbitals) {
       std::cout << phic.en() << "\n";
@@ -255,12 +257,15 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
   int num_points = (int)r.size();
   int qsteps = (int)q_array.size();
 
+  std::ofstream data;
+  data.open("jLqr.txt");
+
   jLqr_f.resize(max_L + 1, std::vector<std::vector<double>>(
                                qsteps, std::vector<double>(num_points)));
   for (int L = 0; L <= max_L; L++) {
     std::cout << "\rCalculating spherical Bessel look-up table for L=" << L
               << "/" << max_L << " .. " << std::flush;
-#pragma omp parallel for
+    //#pragma omp parallel for
     for (int iq = 0; iq < qsteps; iq++) {
       double q = q_array[iq];
       for (int ir = 0; ir < num_points; ir++) {
@@ -285,7 +290,8 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
           tmp /= (num_extra + 1);
         }
         jLqr_f[L][iq][ir] = tmp;
-        std::cout << "jLqr_f = " << tmp << '\n';
+        data << r[ir] * q << ' ' << tmp << '\n';
+        // std::cout << tmp << '\n';
       }
     }
   }
@@ -294,4 +300,18 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
 
 void addThirty(std::vector<int> &vect) { vect.push_back(30); }
 
+std::vector<double> LogVect(int min, int max, int num_points) {
+  double logarithmicBase = 2.71;
+  double logMin = log(min);
+  double logMax = log(max);
+  double delta = (logMax - logMin) / num_points;
+  double accDelta = 0;
+  std::vector<double> v;
+  for (int i = 0; i <= num_points; ++i) {
+    v.push_back(pow(logarithmicBase, logMin + accDelta));
+    // std::cout << pow(logarithmicBase, logMin + accDelta) << '\n';
+    accDelta += delta; // accDelta = delta * i
+  }
+  return v;
+}
 } // namespace AKF
