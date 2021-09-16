@@ -17,9 +17,20 @@ int akReadWrite(const std::string &fname, bool write,
                 std::vector<std::string> &nklst, double &qmin, double &qmax,
                 double &dEmin, double &dEmax);
 
-int calculateK_nk(const Wavefunction &wf, std::size_t nk, int max_L, double dE,
-                  const std::vector<std::vector<std::vector<double>>> &jLqr_f,
-                  std::vector<float> &K_nk, double Zeff = -1);
+std::vector<float>
+calculateK_nk(const Wavefunction &wf, std::size_t nk, int max_L, double dE,
+              const std::vector<std::vector<std::vector<double>>> &jLqr_f,
+              std::size_t q_size);
+
+void calculateK_nk(const Wavefunction &wf, std::size_t nk, int max_L, double dE,
+                   const std::vector<std::vector<std::vector<double>>> &jLqr_f,
+                   std::vector<float> &K_nk);
+
+std::vector<float>
+basisK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
+          double dEb,
+          const std::vector<std::vector<std::vector<double>>> &jLqr_f,
+          std::size_t q_size);
 
 int calculateKpw_nk(const Wavefunction &wf, std::size_t nk, double dE,
                     std::vector<std::vector<double>> &jl_qr,
@@ -32,8 +43,7 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
                           int max_L, const std::vector<double> &q_array,
                           const std::vector<double> &r);
 
-void addThirty(std::vector<int> &vect);
-
-std::vector<double> LogVect(int min, int max, int num_points);
+std::vector<double> LogVect(double min, double max, int num_points);
+std::vector<double> LinVect(double min, double max, int n);
 
 } // namespace AKF

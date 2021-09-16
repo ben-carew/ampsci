@@ -144,9 +144,20 @@ int akReadWrite(const std::string &fname, bool write,
 }
 
 //******************************************************************************
-int calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
-                  const std::vector<std::vector<std::vector<double>>> &jLqr_f,
-                  std::vector<float> &AK_nk_q, double)
+
+std::vector<float>
+calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
+              const std::vector<std::vector<std::vector<double>>> &jLqr_f,
+              std::size_t q_size) {
+  std::vector<float> K_nk(q_size);
+  calculateK_nk(wf, is, max_L, dE, jLqr_f, K_nk);
+  return K_nk;
+}
+
+//******************************************************************************
+void calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
+                   const std::vector<std::vector<std::vector<double>>> &jLqr_f,
+                   std::vector<float> &K_nk)
 // Calculates the atomic factor for a given core state (is) and energy.
 // Note: dE = I + ec is depositied energy, not cntm energy
 // Zeff is '-1' by default. If Zeff > 0, will solve w/ Zeff model
@@ -177,12 +188,12 @@ int calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
   // L and lc are summed, not stored individually
   for (int L = 0; L <= max_L; L++) {
     for (const auto &phic : cntm.orbitals) {
-      std::cout << phic.en() << "\n";
+      std::cout << "cntm" << phic.en() << "\n";
       int kc = phic.k;
       double dC_Lkk = CLkk(L, k, kc);
       if (dC_Lkk == 0)
         continue;
-      //#pragma omp parallel for
+#pragma omp parallel for
       for (int iq = 0; iq < qsteps; iq++) {
         double a = 0.;
         auto maxj = psi.max_pt(); // don't bother going further
@@ -191,12 +202,58 @@ int calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
         double ag = NumCalc::integrate(1.0, 0, maxj, psi.g(), phic.g(),
                                        jLqr_f[L][iq], wf.rgrid->drdu());
         a = af + ag;
-        AK_nk_q[iq] +=
-            (float)(dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf);
+        K_nk[iq] += (float)(dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf);
       } // q
     }   // END loop over cntm states (ic)
   }     // end L loop
-  return 0;
+}
+
+//******************************************************************************
+
+std::vector<float>
+basisK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
+          double dEb,
+          const std::vector<std::vector<std::vector<double>>> &jLqr_f,
+          std::size_t q_size) {
+  std::vector<float> K_nk(q_size);
+  auto &psi = wf.core[is];
+
+  int k = psi.k; // wf.ka(is);
+
+  int qsteps = (int)jLqr_f[0].size();
+
+  // Calculate continuum wavefunctions
+  double ea = dEa + wf.core[is].en();
+  double eb = dEb + wf.core[is].en();
+
+  double x_ocf = psi.occ_frac(); // occupancy fraction. Usually 1
+
+  // Generate AK for each L, lc, and q
+  // L and lc are summed, not stored individually
+  for (int L = 0; L <= max_L; L++) {
+    for (const auto &phic : wf.basis) {
+      // if statement: only do if phic.en() is in between (ea,eb)
+      if ((ea <= phic.en()) && (phic.en() <= eb)) {
+        std::cout << "basis" << phic.en() << "\n";
+        int kc = phic.k;
+        double dC_Lkk = CLkk(L, k, kc);
+        if (dC_Lkk == 0)
+          continue;
+#pragma omp parallel for
+        for (int iq = 0; iq < qsteps; iq++) {
+          double a = 0.;
+          auto maxj = psi.max_pt(); // don't bother going further
+          double af = NumCalc::integrate(1.0, 0, maxj, psi.f(), phic.f(),
+                                         jLqr_f[L][iq], wf.rgrid->drdu());
+          double ag = NumCalc::integrate(1.0, 0, maxj, psi.g(), phic.g(),
+                                         jLqr_f[L][iq], wf.rgrid->drdu());
+          a = af + ag;
+          K_nk[iq] += (float)(dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf);
+        } // q
+      }   // end if ea < phic.en < eb
+    }     // END loop over cntm states (ic)
+  }       // end L loop
+  return K_nk;
 }
 
 //******************************************************************************
@@ -298,11 +355,9 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
   std::cout << "done\n";
 }
 
-void addThirty(std::vector<int> &vect) { vect.push_back(30); }
-
-std::vector<double> LogVect(int min, int max, int num_points) {
+std::vector<double> LogVect(double min, double max, int num_points) {
   double logarithmicBase = 2.71;
-  double logMin = log(min);
+  double logMin = min; // log(min);
   double logMax = log(max);
   double delta = (logMax - logMin) / num_points;
   double accDelta = 0;
@@ -313,5 +368,16 @@ std::vector<double> LogVect(int min, int max, int num_points) {
     accDelta += delta; // accDelta = delta * i
   }
   return v;
+}
+
+std::vector<double> LinVect(double min, double max, int n) {
+  double h = (max - min) / static_cast<double>(n - 1);
+  std::vector<double> xs(n);
+  std::vector<double>::iterator x;
+  double val;
+  for (x = xs.begin(), val = min; x != xs.end(); ++x, val += h) {
+    *x = val;
+  }
+  return xs;
 }
 } // namespace AKF

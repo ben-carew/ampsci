@@ -9,66 +9,85 @@ const double AUMEV = PhysConst::c / PhysConst::m_e_MeV;
 namespace Module {
 
 void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
-  std::cout << "\nAK tests module:\n\n";
-
-  std::ofstream myfile;
-  myfile.open("K_nk.txt");
-
-  // // Some test outputs for practice
-  // int value = input.get("testinput",0);
-  // std::vector<int> v;
-  // v.push_back(1);
-  // AKF::addThirty(v);
-  // for (int i=0; i<v.size(); i++){
-  //   std::cout << "v["<<i<<"] = " << v[i] << ", ";}
-  //   std::cout << "size = " << v.size() << '\n';
-  // std::cout << "value = " << value << '\n';
+  std::cout << "\nAK tests module:\n";
 
   const int max_L = input.get("max_L", 0);
+  const int core_n = input.get("core_n", 1);
+  const int core_k = input.get("core_k", -1);
+
+  const int Npoints = input.get("Npoints", 1);
   const double dE = input.get("dE", 0);
+  const double dEa = input.get("dEa", 0);
+  const double dEb = input.get("dEb", 0);
+  const double deltaE = (dEb - dEa) / Npoints;
+  auto E_array = AKF::LinVect(dEa, dEb, Npoints);
 
-  const size_t n = 100;
-  const int q_min = 1;
-  const int q_max = 1000;
+  const int n = input.get("q_n", 0);
+  const double q_min = 0.001;
+  const double q_max = 1000;
   auto q_array = AKF::LogVect(q_min, q_max, n);
-  std::vector<float> K_nk(q_array.size());
-
-  // const std::vector<double> r{1,2,3,4,5};
-
-  // int calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L,
-  //                   double dE,
-  //                   std::vector<std::vector<std::vector<double>>> &jLqr_f,
-  //                   std::vector<float> &K_nk, double Zeff = -1);
-
-  // void sphericalBesselTable(
-  //     std::vector<std::vector<std::vector<double>>> & jLqr_f, int max_L,
-  //     const std::vector<double> &q_array, const std::vector<double> &r);
+  size_t q_size = q_array.size();
+  size_t k_size = wf.core.size();
+  std::vector<float> K_nk(q_size);
+  std::vector<float> K_sum(q_size);
+  std::vector<float> K_basis(q_size);
+  std::vector<float> K_prime(q_size);
   const auto &r = wf.rgrid->r();
 
   const auto jLqr_f = AKF::sphericalBesselTable(max_L, q_array, r);
 
   // const auto &Jlq_r = jLqr_f[iL][iq];
 
-  // loop through the core states:
-  std::cout << "Core: \n";
-  // for (const auto &Fc : wf.core) {
-  //   std::cout << Fc.symbol() << " " << Fc.en() << "\n";
+  // // sum over all orbitals
+  // for (std::size_t j = 0; j < k_size; ++j) {
+  //   std::cout << wf.core[j].symbol() << " " << wf.core[j].en() << "\n";
+  //   if (wf.core[j].n == core_n && wf.core[j].k == core_k) {
+  //     K_nk = AKF::calculateK_nk(wf, j, max_L, dE, jLqr_f, q_size);
+  //     for (std::size_t i = 0; i < q_size; i++) {
+  //       K_sum[i] = K_nk[i] + K_sum[i];
+  //     }
+  //   }
+  // }
+  // for (std::size_t i = 0; i < q_array.size(); i++) {
+  //   data1 << q_array[i] / AUMEV << ' ' << K_sum[i] << '\n';
   // }
 
-  for (std::size_t i = 0; i < wf.core.size(); ++i) {
-    std::cout << wf.core[i].symbol() << " " << wf.core[i].en() << "\n";
-    if (wf.core[i].n == 3 && wf.core[i].k == -1) {
-      AKF::calculateK_nk(wf, i, max_L, dE, jLqr_f, K_nk);
+  // calculate single orbitals
+  for (std::size_t j = 0; j < k_size; ++j) {
+    if (wf.core[j].n == core_n && wf.core[j].k == core_k) {
+      for (std::size_t k = 0; k < E_array.size(); k++) {
+        K_nk = AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
+        for (std::size_t i = 0; i < q_size; i++) {
+          K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
+        }
+      }
+      K_basis = AKF::basisK_nk(wf, j, max_L, dEa, dEb, jLqr_f, q_size);
     }
   }
 
-  // std::cout << "Atomic Kernel K_nk" << '\n';
-  for (std::size_t i = 0; i < q_array.size(); i++) {
-    myfile << q_array[i] / AUMEV << ' ' << K_nk[i] << '\n';
+  // data ouput
+  std::ofstream data1;
+  data1.open("K_nk.txt");
+  std::ofstream data2;
+  data2.open("K_basis.txt");
+  std::ofstream data3;
+  data3.open("K_all.txt");
+  for (std::size_t j = 0; j < q_array.size(); j++) {
+    data1 << q_array[j] / AUMEV << ' ' << K_nk[j] << '\n';
+    data2 << q_array[j] / AUMEV << ' ' << K_basis[j] << '\n';
+    data3 << q_array[j] / AUMEV << ' ' << K_prime[j] << ' ' << K_basis[j]
+          << '\n';
   }
-  myfile.close();
+  data1.close();
+  data2.close();
+  data3.close();
 
-  // loop through the basis states:
+  // // loop through the core states:
+  // std::cout << "Core: \n";
+  // for (std::size_t j = 0; j < k_size; ++j) {
+  //   std::cout << wf.core[j].symbol() << " " << wf.core[j].en() << "\n";
+  // }
+  // // loop through the basis states :
   // std::cout << "Basis: \n";
   // for (const auto &Fb : wf.basis) {
   //   std::cout << Fb.symbol() << " " << Fb.en() << "\n";
