@@ -52,19 +52,30 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
         K_sum[i] = K_prime[i] + K_sum[i];
         K_bsum[i] = K_basis[i] + K_bsum[i];
       }
+      std::fill(K_prime.begin(), K_prime.end(), 0);
     }
   } else {
     // calculate single orbitals
     for (std::size_t j = 0; j < k_size; ++j) {
-      if (wf.core[j].n == core_n && wf.core[j].k == core_k) {
-        for (std::size_t k = 0; k < E_array.size(); k++) {
-          K_nk = AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
-          for (std::size_t i = 0; i < q_size; i++) {
-            K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
-          }
+      // if (wf.core[j].n == core_n && wf.core[j].k == core_k) {
+      for (std::size_t k = 0; k < E_array.size(); k++) {
+        K_nk = AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
+        for (std::size_t i = 0; i < q_size; i++) {
+          K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
         }
-        K_basis = AKF::basisK_nk(wf, j, max_L, dEa, dEb, jLqr_f, q_size);
       }
+      K_basis = AKF::basisK_nk(wf, j, max_L, dEa, dEb, jLqr_f, q_size);
+      //}
+      std::ofstream core_dat;
+      core_dat.open("j" + std::to_string(j) + ".txt");
+      for (std::size_t i = 0; i < q_array.size(); i++) {
+        core_dat << q_array[i] / AUMEV << ' ' << K_prime[i] << ' ' << K_basis[i]
+                 << '\n';
+      }
+      core_dat.close();
+      std::fill(K_nk.begin(), K_nk.end(), 0);
+      std::fill(K_prime.begin(), K_prime.end(), 0);
+      std::fill(K_basis.begin(), K_basis.end(), 0);
     }
   }
 
