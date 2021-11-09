@@ -84,7 +84,7 @@ int ContinuumOrbitals::solveContinuumHF(double ec, int min_l, int max_l)
 
   // "Z_ion" - "actual" (excluding exchange.....)
   auto z_tmp = std::abs(v_local.back() * rgrid->r().back());
-  std::cout << "z_tmp=" << z_tmp << "\n";
+  // std::cout << "z_tmp=" << z_tmp << "\n";
   // If ztm is 0, means neutral atom. Effective charge should be 1
   // Exchange doesn't go further than core...
   // This doesn't seem to have any impact, so unimportant

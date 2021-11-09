@@ -188,7 +188,7 @@ void calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
   // L and lc are summed, not stored individually
   for (int L = 0; L <= max_L; L++) {
     for (const auto &phic : cntm.orbitals) {
-      std::cout << "cntm: " << phic.en() << "\n";
+      // std::cout << "cntm: " << phic.en() << "\n";
       int kc = phic.k;
       double dC_Lkk = CLkk(L, k, kc);
       if (dC_Lkk == 0)
@@ -234,7 +234,7 @@ basisK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
     for (const auto &phic : wf.basis) {
       // if statement: only do if phic.en() is in between (ea,eb)
       if ((ea <= phic.en()) && (phic.en() <= eb)) {
-        std::cout << "basis: " << phic.en() << "\n";
+        // std::cout << "basis: " << phic.en() << "\n";
         int kc = phic.k;
         double dC_Lkk = CLkk(L, k, kc);
         if (dC_Lkk == 0)
