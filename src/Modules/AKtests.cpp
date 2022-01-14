@@ -15,6 +15,9 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   const int core_n = input.get("core_n", 1);
   const int core_k = input.get("core_k", -1);
   const bool sum = input.get("sum", false);
+  const bool calc_j = input.get("calc_j", true);
+  const bool do_finite_diff = input.get("do_finite_diff", false);
+  const bool do_basis = input.get("do_basis", true);
 
   const int Npoints = input.get("Npoints", 1);
   const double dE = input.get("dE", 0);
@@ -35,24 +38,53 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   std::vector<float> K_basis(q_size);
   std::vector<float> K_prime(q_size);
   const auto &r = wf.rgrid->r();
+  std::vector<std::vector<std::vector<double>>> jLqr_f;
 
-  const auto jLqr_f = AKF::sphericalBesselTable(max_L, q_array, r);
+  if (calc_j == true) {
+    jLqr_f = AKF::sphericalBesselTable(max_L, q_array, r);
+  } else {
+    std::vector<std::string> j_read;
+    std::string line;
+    int line_num = 0;
+    std::ifstream data_in("jLqr.txt");
+    if (data_in.is_open()) {
+      while (getline(data_in, line)) {
+        j_read[line_num] = line;
+        line_num++;
+      }
+    }
+    line_num = 0;
+    for (int L = 0; L <= max_L; L++) {
+      for (int iq = 0; iq < q_size; iq++) {
+        for (int ir = 0; ir < Npoints; ir++) {
+          jLqr_f[L][iq][ir] = std::stod(j_read[line_num]);
+          line_num++;
+        }
+      }
+    }
+  }
 
   if (sum == true) {
     // sum over all orbitals
     for (std::size_t j = 0; j < k_size; ++j) {
-      for (std::size_t k = 0; k < E_array.size(); k++) {
-        K_nk = AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
+      if (do_finite_diff == true) {
+        for (std::size_t k = 0; k < E_array.size(); k++) {
+          K_nk = AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
+          for (std::size_t i = 0; i < q_size; i++) {
+            K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
+          }
+        }
         for (std::size_t i = 0; i < q_size; i++) {
-          K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
+          K_sum[i] = K_prime[i] + K_sum[i];
         }
       }
-      K_basis = AKF::basisK_nk(wf, j, max_L, dEa, dEb, jLqr_f, q_size);
-      for (std::size_t i = 0; i < q_size; i++) {
-        K_sum[i] = K_prime[i] + K_sum[i];
-        K_bsum[i] = K_basis[i] + K_bsum[i];
+      if (do_basis == true) {
+        K_basis = AKF::basisK_nk(wf, j, max_L, dEa, dEb, jLqr_f, q_size);
+        for (std::size_t i = 0; i < q_size; i++) {
+          K_bsum[i] = K_basis[i] + K_bsum[i];
+        }
+        std::fill(K_prime.begin(), K_prime.end(), 0);
       }
-      std::fill(K_prime.begin(), K_prime.end(), 0);
     }
   } else {
     // calculate single orbitals
@@ -66,6 +98,7 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
         }
         K_basis = AKF::basisK_nk(wf, j, max_L, dEa, dEb, jLqr_f, q_size);
       }
+      // // Calculate all orbitals individually
       // std::ofstream core_dat;
       // core_dat.open("j" + std::to_string(j) + ".txt");
       // for (std::size_t i = 0; i < q_array.size(); i++) {
@@ -81,30 +114,19 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   }
 
   // data ouput
-  std::ofstream data1;
-  data1.open("K_nk.txt");
-  std::ofstream data2;
-  data2.open("K_basis.txt");
-  std::ofstream data3;
-  data3.open("K_all.txt");
+  std::ofstream data;
+  data.open("K_all.txt");
   if (sum == false) {
     for (std::size_t j = 0; j < q_array.size(); j++) {
-      data1 << q_array[j] / AUMEV << ' ' << K_nk[j] << '\n';
-      data2 << q_array[j] / AUMEV << ' ' << K_basis[j] << '\n';
-      data3 << q_array[j] / AUMEV << ' ' << K_prime[j] << ' ' << K_basis[j]
-            << '\n';
+      data << q_array[j] / AUMEV << ' ' << K_prime[j] << ' ' << K_basis[j]
+           << '\n';
     }
   } else {
     for (std::size_t j = 0; j < q_array.size(); j++) {
-      data1 << q_array[j] / AUMEV << ' ' << K_sum[j] << '\n';
-      data2 << q_array[j] / AUMEV << ' ' << K_bsum[j] << '\n';
-      data3 << q_array[j] / AUMEV << ' ' << K_sum[j] << ' ' << K_bsum[j]
-            << '\n';
+      data << q_array[j] / AUMEV << ' ' << K_sum[j] << ' ' << K_bsum[j] << '\n';
     }
   }
-  data1.close();
-  data2.close();
-  data3.close();
+  data.close();
 
   // // loop through the core states:
   // std::cout << "Core: \n";

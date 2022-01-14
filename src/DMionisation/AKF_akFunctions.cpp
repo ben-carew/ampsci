@@ -347,7 +347,7 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
           tmp /= (num_extra + 1);
         }
         jLqr_f[L][iq][ir] = tmp;
-        data << r[ir] * q << ' ' << tmp << '\n';
+        data << tmp << '\n';
         // std::cout << tmp << '\n';
       }
     }
