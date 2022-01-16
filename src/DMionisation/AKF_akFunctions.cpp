@@ -313,12 +313,12 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
   std::cout << std::endl;
   int num_points = (int)r.size();
   int qsteps = (int)q_array.size();
+  jLqr_f.resize(max_L + 1, std::vector<std::vector<double>>(
+                               qsteps, std::vector<double>(num_points)));
 
   std::ofstream data;
   data.open("jLqr.txt");
 
-  jLqr_f.resize(max_L + 1, std::vector<std::vector<double>>(
-                               qsteps, std::vector<double>(num_points)));
   for (int L = 0; L <= max_L; L++) {
     std::cout << "\rCalculating spherical Bessel look-up table for L=" << L
               << "/" << max_L << " .. " << std::flush;
@@ -347,7 +347,7 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
           tmp /= (num_extra + 1);
         }
         jLqr_f[L][iq][ir] = tmp;
-        data << tmp << '\n';
+        data << L << ' ' << iq << ' ' << ir << ' ' << tmp << '\n';
         // std::cout << tmp << '\n';
       }
     }

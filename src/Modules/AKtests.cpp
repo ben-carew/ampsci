@@ -14,12 +14,10 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   const int max_L = input.get("max_L", 0);
   const int core_n = input.get("core_n", 1);
   const int core_k = input.get("core_k", -1);
-  const bool sum = input.get("sum", false);
+  const bool sum = input.get("sum", true);
   bool calc_j = input.get("calc_j", true);
   const bool do_finite_diff = input.get("do_finite_diff", false);
   const bool do_basis = input.get("do_basis", true);
-
-  calc_j = false;
 
   const int Npoints = input.get("Npoints", 1);
   const double dE = input.get("dE", 0);
@@ -28,48 +26,61 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   const double deltaE = (dEb - dEa) / Npoints;
   auto E_array = AKF::LinVect(dEa, dEb, Npoints);
 
-  const int n = input.get("q_n", 0);
+  const int n = input.get("q_n", 200);
   const double q_min = 0.001;
   const double q_max = 1000;
   auto q_array = AKF::LogVect(q_min, q_max, n);
-  size_t q_size = q_array.size();
-  size_t k_size = wf.core.size();
+  const size_t q_size = q_array.size();
+  const size_t k_size = wf.core.size();
+  const auto &r = wf.rgrid->r();
+  const size_t r_size = r.size();
   std::vector<float> K_nk(q_size);
   std::vector<float> K_sum(q_size);
   std::vector<float> K_bsum(q_size);
   std::vector<float> K_basis(q_size);
   std::vector<float> K_prime(q_size);
-  const auto &r = wf.rgrid->r();
+
   std::vector<std::vector<std::vector<double>>> jLqr_f;
 
   if (calc_j == true) {
     jLqr_f = AKF::sphericalBesselTable(max_L, q_array, r);
+    // std::ofstream test1;
+    // test1.open("jLqr_before.txt");
+    // for (int iq = 0; iq < q_size; iq++) {
+    //   for (int ir = 0; ir < r_size; ir++) {
+    //     test1 << ir * iq << ' ' << jLqr_f[0][iq][ir] << '\n';
+    //   }
+    // }
   } else {
-    std::cout << "j_calc = false" << '\n';
+    int L, iq, ir;
+    char delim = ' ';
+    jLqr_f.resize(max_L + 1, std::vector<std::vector<double>>(
+                                 q_size, std::vector<double>(r_size)));
     std::vector<std::string> j_read;
     std::string line;
-    int line_num = 0;
     std::ifstream data_in("jLqr.txt");
     if (data_in.is_open()) {
-      std::cout << "Data file open" << '\n';
-      while (getline(data_in, line)) {
-        j_read[line_num] = line;
-        line_num++;
-        std::cout << line << '\n';
+      for (int l = 1; l <= (max_L + 1) * q_size * r_size; l++) {
+        getline(data_in, line, delim);
+        L = std::stoi(line);
+        getline(data_in, line, delim);
+        iq = std::stoi(line);
+        getline(data_in, line, delim);
+        ir = std::stoi(line);
+        getline(data_in, line);
+        jLqr_f[L][iq][ir] = std::stod(line);
+        /*std::cout << l << ' ' << L << ' ' << iq << ' ' << ir << ' '
+                  << jLqr_f[L][iq][ir] << '\n';*/
       }
     }
-    std::cout << "Data read" << '\n';
-    line_num = 0;
-    for (int L = 0; L <= max_L; L++) {
-      for (int iq = 0; iq < q_size; iq++) {
-        for (int ir = 0; ir < Npoints; ir++) {
-          jLqr_f[L][iq][ir] = std::stod(j_read[line_num]);
-          line_num++;
-        }
-      }
-    }
+    // std::ofstream test2;
+    // test2.open("jLqr_after.txt");
+    // for (int iq = 0; iq < q_size; iq++) {
+    //   for (int ir = 0; ir < r_size; ir++) {
+    //     test2 << ir * iq << ' ' << jLqr_f[0][iq][ir] << '\n';
+    //   }
+    // }
   }
-  std::cout << "j_Lqr filled" << '\n';
 
   if (sum == true) {
     // sum over all orbitals
