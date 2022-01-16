@@ -15,9 +15,11 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   const int core_n = input.get("core_n", 1);
   const int core_k = input.get("core_k", -1);
   const bool sum = input.get("sum", false);
-  const bool calc_j = input.get("calc_j", true);
+  bool calc_j = input.get("calc_j", true);
   const bool do_finite_diff = input.get("do_finite_diff", false);
   const bool do_basis = input.get("do_basis", true);
+
+  calc_j = false;
 
   const int Npoints = input.get("Npoints", 1);
   const double dE = input.get("dE", 0);
@@ -43,16 +45,20 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   if (calc_j == true) {
     jLqr_f = AKF::sphericalBesselTable(max_L, q_array, r);
   } else {
+    std::cout << "j_calc = false" << '\n';
     std::vector<std::string> j_read;
     std::string line;
     int line_num = 0;
     std::ifstream data_in("jLqr.txt");
     if (data_in.is_open()) {
+      std::cout << "Data file open" << '\n';
       while (getline(data_in, line)) {
         j_read[line_num] = line;
         line_num++;
+        std::cout << line << '\n';
       }
     }
+    std::cout << "Data read" << '\n';
     line_num = 0;
     for (int L = 0; L <= max_L; L++) {
       for (int iq = 0; iq < q_size; iq++) {
@@ -63,6 +69,7 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
       }
     }
   }
+  std::cout << "j_Lqr filled" << '\n';
 
   if (sum == true) {
     // sum over all orbitals
@@ -90,13 +97,17 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
     // calculate single orbitals
     for (std::size_t j = 0; j < k_size; ++j) {
       if (wf.core[j].n == core_n && wf.core[j].k == core_k) {
-        for (std::size_t k = 0; k < E_array.size(); k++) {
-          K_nk = AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
-          for (std::size_t i = 0; i < q_size; i++) {
-            K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
+        if (do_finite_diff == true) {
+          for (std::size_t k = 0; k < E_array.size(); k++) {
+            K_nk = AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
+            for (std::size_t i = 0; i < q_size; i++) {
+              K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
+            }
           }
         }
-        K_basis = AKF::basisK_nk(wf, j, max_L, dEa, dEb, jLqr_f, q_size);
+        if (do_basis == true) {
+          K_basis = AKF::basisK_nk(wf, j, max_L, dEa, dEb, jLqr_f, q_size);
+        }
       }
       // // Calculate all orbitals individually
       // std::ofstream core_dat;
