@@ -150,15 +150,5 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   }
   data.close();
 
-  // // loop through the core states:
-  // std::cout << "Core: \n";
-  // for (std::size_t j = 0; j < k_size; ++j) {
-  //   std::cout << wf.core[j].symbol() << " " << wf.core[j].en() << "\n";
-  // }
-  // // loop through the basis states :
-  // std::cout << "Basis: \n";
-  // for (const auto &Fb : wf.basis) {
-  //   std::cout << Fb.symbol() << " " << Fb.en() << "\n";
-  // }
 } // AKtests
 } // namespace Module
