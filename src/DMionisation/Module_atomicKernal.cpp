@@ -115,10 +115,10 @@ void atomicKernal(const IO::InputBlock &input, const Wavefunction &wf) {
   //////////////////////////////////////////////////
 
   // Arrays to store results for outputting later:
-  std::vector<std::vector<std::vector<float>>> AK; // float ok?
+  std::vector<std::vector<std::vector<double>>> AK; // double ok?
   int num_states = (int)wf.core.size();
-  AK.resize(desteps, std::vector<std::vector<float>>(
-                         num_states, std::vector<float>(qsteps)));
+  AK.resize(desteps, std::vector<std::vector<double>>(
+                         num_states, std::vector<double>(qsteps)));
 
   // Store state info (each orbital) [just useful for plotting!]
   std::vector<std::string> nklst; // human-readiable state labels (easy

@@ -21,7 +21,8 @@ $(info )
 
 #Warnings:
 WARN=-Wall -Wpedantic -Wextra -Wdouble-promotion -Wconversion -Wshadow \
--Weffc++ -Wsign-conversion
+-Weffc++
+#-Wsign-conversion
 # -Wfloat-equal
 
 # Changes to warning based on compiler:

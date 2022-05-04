@@ -1,6 +1,7 @@
 #include "DMionisation/AKF_akFunctions.hpp"
 #include "Angular/Angular_369j.hpp"
 #include "IO/FRW_fileReadWrite.hpp"
+#include "Maths/Interpolator.hpp"
 #include "Maths/NumCalc_quadIntegrate.hpp"
 #include "Maths/SphericalBessel.hpp"
 #include "Physics/AtomData.hpp"
@@ -41,7 +42,7 @@ double CLkk(int L, int ka, int kb)
 
 //******************************************************************************
 void writeToTextFile(const std::string &fname,
-                     const std::vector<std::vector<std::vector<float>>> &AK,
+                     const std::vector<std::vector<std::vector<double>>> &AK,
                      const std::vector<std::string> &nklst, double qmin,
                      double qmax, double demin, double demax)
 // /*
@@ -75,7 +76,7 @@ void writeToTextFile(const std::string &fname,
         y = 0;
       double dE = demin * std::pow(demax / demin, y);
       ofile << dE / keV << " " << q / qMeV << " ";
-      float sum = 0.0f;
+      double sum = 0.0f;
       for (int j = 0; j < num_states; j++) {
         sum += AK[i][j][k];
         ofile << AK[i][j][k] << " ";
@@ -90,7 +91,7 @@ void writeToTextFile(const std::string &fname,
 
 //******************************************************************************
 int akReadWrite(const std::string &fname, bool write,
-                std::vector<std::vector<std::vector<float>>> &AK,
+                std::vector<std::vector<std::vector<double>>> &AK,
                 std::vector<std::string> &nklst, double &qmin, double &qmax,
                 double &dEmin, double &dEmax)
 // /*
@@ -123,7 +124,8 @@ int akReadWrite(const std::string &fname, bool write,
     IO::FRW::binary_rw(iof, nde, row);
     IO::FRW::binary_rw(iof, ns, row);
     IO::FRW::binary_rw(iof, nq, row);
-    AK.resize(nde, std::vector<std::vector<float>>(ns, std::vector<float>(nq)));
+    AK.resize(nde,
+              std::vector<std::vector<double>>(ns, std::vector<double>(nq)));
     nklst.resize(ns);
   }
   IO::FRW::binary_rw(iof, qmin, row);
@@ -145,11 +147,11 @@ int akReadWrite(const std::string &fname, bool write,
 
 //******************************************************************************
 
-std::vector<float>
+std::vector<double>
 calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
               const std::vector<std::vector<std::vector<double>>> &jLqr_f,
               std::size_t q_size) {
-  std::vector<float> K_nk(q_size);
+  std::vector<double> K_nk(q_size);
   calculateK_nk(wf, is, max_L, dE, jLqr_f, K_nk);
   return K_nk;
 }
@@ -157,7 +159,7 @@ calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
 //******************************************************************************
 void calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
                    const std::vector<std::vector<std::vector<double>>> &jLqr_f,
-                   std::vector<float> &K_nk)
+                   std::vector<double> &K_nk)
 // Calculates the atomic factor for a given core state (is) and energy.
 // Note: dE = I + ec is depositied energy, not cntm energy
 // Zeff is '-1' by default. If Zeff > 0, will solve w/ Zeff model
@@ -202,7 +204,7 @@ void calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
         double ag = NumCalc::integrate(1.0, 0, maxj, psi.g(), phic.g(),
                                        jLqr_f[L][iq], wf.rgrid->drdu());
         a = af + ag;
-        K_nk[iq] += (float)(dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf);
+        K_nk[iq] += (dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf);
       } // q
     }   // END loop over cntm states (ic)
   }     // end L loop
@@ -210,12 +212,12 @@ void calculateK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dE,
 
 //******************************************************************************
 
-std::vector<float>
+std::vector<double>
 basisK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
           double dEb,
           const std::vector<std::vector<std::vector<double>>> &jLqr_f,
           std::size_t q_size) {
-  std::vector<float> K_nk(q_size);
+  std::vector<double> K_nk(q_size);
   auto &psi = wf.core[is];
 
   int k = psi.k; // wf.ka(is);
@@ -248,7 +250,7 @@ basisK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
           double ag = NumCalc::integrate(1.0, 0, maxj, psi.g(), phic.g(),
                                          jLqr_f[L][iq], wf.rgrid->drdu());
           a = af + ag;
-          K_nk[iq] += (float)(dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf);
+          K_nk[iq] += (dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf);
         } // q
       }   // end if ea < phic.en < eb
     }     // END loop over cntm states (ic)
@@ -257,9 +259,113 @@ basisK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
 }
 
 //******************************************************************************
+
+std::vector<std::vector<double>>
+basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
+              double dEb,
+              const std::vector<std::vector<std::vector<double>>> &jLqr_f,
+              std::vector<double> q_array, int Npoints) {
+
+  int kcount = 1;
+  int loop = 0;
+  int k_current = wf.basis.at(0).k;
+  for (auto &phi : wf.basis) {
+    if (k_current != phi.k) {
+      k_current = phi.k;
+      kcount++;
+    }
+    loop++;
+  }
+  int bas_num = (int)wf.basis.size() / kcount;
+  std::cout << "k = " << kcount << "; bas_num = " << bas_num << '\n';
+
+  auto &psi = wf.core[is];
+
+  int k = psi.k; // wf.ka(is);
+
+  // Calculate continuum wavefunctions
+  double ea = dEa; // + wf.core[is].en();
+  double eb = dEb; // + wf.core[is].en();
+
+  double x_ocf = psi.occ_frac(); // occupancy fraction. Usually 1
+
+  std::vector<std::vector<double>> basis_energies(kcount,
+                                                  std::vector<double>(bas_num));
+  std::cout << "basis_energies has dimensions: " << basis_energies.size()
+            << " x " << basis_energies.at(0).size() << std::endl;
+  std::vector<std::vector<std::vector<double>>> K_nk(
+      q_array.size(),
+      std::vector<std::vector<double>>(kcount, std::vector<double>(bas_num)));
+  std::cout << "K_nk has dimensions: " << K_nk.size() << " x "
+            << K_nk.at(0).size() << " x " << K_nk.at(0).at(0).size()
+            << std::endl;
+
+  double prev_en = 0.0;
+  double delta_E;
+  int ie = 0;
+  int ik = -1;
+  for (std::size_t ecount = 0; ecount < wf.basis.size(); ecount++) {
+    if (ecount % bas_num == 0) {
+      ie = 0;
+      prev_en = 0.0;
+      ik++;
+    }
+
+    delta_E = wf.basis.at(ie).en() - prev_en - psi.en();
+    prev_en = wf.basis.at(ie).en() - psi.en();
+    for (int L = 0; L <= max_L; L++) {
+      double dC_Lkk = CLkk(L, k, wf.basis.at(ie).k);
+      if (dC_Lkk != 0 && wf.basis.at(ie).en() > 0.0) {
+        // #pragma omp parallel for
+        for (std::size_t iq = 0; iq < q_array.size(); iq++) {
+          double a = 0.;
+          auto maxj = psi.max_pt(); // don't bother going further
+          double af =
+              NumCalc::integrate(1.0, 0, maxj, psi.f(), wf.basis.at(ie).f(),
+                                 jLqr_f[L][iq], wf.rgrid->drdu());
+          double ag =
+              NumCalc::integrate(1.0, 0, maxj, psi.g(), wf.basis.at(ie).g(),
+                                 jLqr_f[L][iq], wf.rgrid->drdu());
+          a = af + ag;
+
+          K_nk.at(iq).at(ik).at(ie) +=
+              (dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf) /
+              std::abs(delta_E);
+          // std::cout << "K_nk = " << K_nk.at(iq).at(ik).at(ie) << '\n';
+        }
+      }
+    }
+
+    basis_energies.at(ik).at(ie) = wf.basis.at(ie).en() - psi.en();
+    // std::cout << "basis_energies = " << basis_energies.at(ik).at(ie)
+    //<< std::endl;
+    ie++;
+  }
+
+  std::vector<double> E_interp_grid;
+  E_interp_grid = AKF::LinVect(ea, eb, Npoints);
+  std::vector<std::vector<double>> K_interp_sum(
+      q_array.size(), std::vector<double>(E_interp_grid.size()));
+  std::vector<std::vector<double>> K_interp(
+      q_array.size(), std::vector<double>(E_interp_grid.size()));
+
+  for (int knum = 0; knum < kcount; knum++) {
+    for (size_t qnum = 0; qnum < q_array.size(); qnum++) {
+      K_interp.at(qnum) = Interpolator::interpolate(
+          basis_energies.at(knum), K_nk.at(qnum).at(knum), E_interp_grid);
+      for (int en_num = 0; en_num < bas_num; en_num++) {
+        K_interp_sum.at(qnum).at(en_num) += K_interp.at(qnum).at(en_num);
+      }
+    }
+  }
+
+  return K_interp_sum;
+}
+
+//******************************************************************************
 int calculateKpw_nk(const Wavefunction &wf, std::size_t nk, double dE,
                     std::vector<std::vector<double>> &jl_qr,
-                    std::vector<float> &tmpK_q)
+                    std::vector<double> &tmpK_q)
 // /*
 // For plane-wave final state.
 // Only has f-part....Can restore g-part, but need to be sure of plane-wave!
@@ -283,8 +389,8 @@ int calculateKpw_nk(const Wavefunction &wf, std::size_t nk, double dE,
     double chi_q =
         NumCalc::integrate(wf.rgrid->du(), 0, maxir, psi.f(), jl_qr[iq],
                            wf.rgrid->r(), wf.rgrid->drdu());
-    tmpK_q[iq] = (float)((2. / M_PI) * (twoj + 1) * std::pow(chi_q, 2) *
-                         std::sqrt(2. * eps));
+    tmpK_q[iq] =
+        ((2. / M_PI) * (twoj + 1) * std::pow(chi_q, 2) * std::sqrt(2. * eps));
     // tmpK_q[iq] = std::pow(4*3.14159,2)*std::pow(chi_q,2); // just cf KOPP
   }
 
@@ -318,6 +424,7 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
 
   std::ofstream data;
   data.open("jLqr.txt");
+  data << max_L << ' ' << qsteps << ' ' << num_points << std::endl;
 
   for (int L = 0; L <= max_L; L++) {
     std::cout << "\rCalculating spherical Bessel look-up table for L=" << L
@@ -347,12 +454,13 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
           tmp /= (num_extra + 1);
         }
         jLqr_f[L][iq][ir] = tmp;
-        data << L << ' ' << iq << ' ' << ir << ' ' << tmp << '\n';
-        // std::cout << tmp << '\n';
+        data << L << ' ' << iq << ' ' << ir << ' ' << tmp << std::endl;
+        // std::cout << tmp << std::endl;
       }
     }
   }
-  std::cout << "done\n";
+  data.close();
+  std::cout << "done" << std::endl;
 }
 
 std::vector<double> LogVect(double min, double max, int num_points) {
@@ -362,9 +470,9 @@ std::vector<double> LogVect(double min, double max, int num_points) {
   double delta = (logMax - logMin) / num_points;
   double accDelta = 0;
   std::vector<double> v;
-  for (int i = 0; i <= num_points; ++i) {
+  for (int i = 0; i < num_points; ++i) {
     v.push_back(pow(logarithmicBase, logMin + accDelta));
-    // std::cout << pow(logarithmicBase, logMin + accDelta) << '\n';
+    // std::cout << pow(logarithmicBase, logMin + accDelta) << std::endl;
     accDelta += delta; // accDelta = delta * i
   }
   return v;
