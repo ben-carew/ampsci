@@ -266,33 +266,35 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
               const std::vector<std::vector<std::vector<double>>> &jLqr_f,
               std::vector<double> q_array, int Npoints) {
 
-  int kcount = 1;
-  int loop = 0;
-  int k_current = wf.basis.at(0).k;
-  for (auto &phi : wf.basis) {
-    if (k_current != phi.k) {
-      k_current = phi.k;
-      kcount++;
-    }
-    loop++;
+  int kcount = 0;
+  int bas_num = 0;
+  for (auto this_k : {-1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7}) {
+    auto lambda = [this_k](const DiracSpinor &phib) {
+      return phib.k == this_k;
+    };
+    auto num_per = (int)std::count_if(wf.basis.begin(), wf.basis.end(), lambda);
+    if (num_per > bas_num)
+      bas_num = num_per;
+    if (num_per == 0)
+      break;
+    ++kcount;
   }
-  int bas_num = (int)wf.basis.size() / kcount;
   std::cout << "k = " << kcount << "; bas_num = " << bas_num << '\n';
 
   auto &psi = wf.core[is];
 
   int k = psi.k; // wf.ka(is);
 
-  // Calculate continuum wavefunctions
-  double ea = dEa; // + wf.core[is].en();
-  double eb = dEb; // + wf.core[is].en();
+  // // Calculate continuum wavefunctions
+  // double ea = dEa + wf.core[is].en();
+  // double eb = dEb + wf.core[is].en();
 
   double x_ocf = psi.occ_frac(); // occupancy fraction. Usually 1
 
-  std::vector<std::vector<double>> basis_energies(kcount,
-                                                  std::vector<double>(bas_num));
-  std::cout << "basis_energies has dimensions: " << basis_energies.size()
-            << " x " << basis_energies.at(0).size() << std::endl;
+  std::vector<std::vector<double>> deposited_energy(
+      kcount, std::vector<double>(bas_num));
+  std::cout << "deposited_energy has dimensions: " << deposited_energy.size()
+            << " x " << deposited_energy.at(0).size() << std::endl;
   std::vector<std::vector<std::vector<double>>> K_nk(
       q_array.size(),
       std::vector<std::vector<double>>(kcount, std::vector<double>(bas_num)));
@@ -303,29 +305,33 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
   double prev_en = 0.0;
   double delta_E;
   int ie = 0;
-  int ik = -1;
+  int ik_old = -1;
   for (std::size_t ecount = 0; ecount < wf.basis.size(); ecount++) {
+    const auto &phi_b = wf.basis.at(ecount);
+    const auto &phi_bn = wf.basis.at(ecount);
     if (ecount % bas_num == 0) {
       ie = 0;
       prev_en = 0.0;
-      ik++;
+      ik_old++;
     }
 
-    delta_E = wf.basis.at(ie).en() - prev_en - psi.en();
-    prev_en = wf.basis.at(ie).en() - psi.en();
+    auto ik = Angular::indexFromKappa(phi_b.k);
+    // std::cout << ik << " " << ik_old << "\n" << std::flush;
+    assert(ik == ik_old);
+
+    delta_E = phi_b.en() - psi.en() - prev_en;
+    prev_en = phi_b.en() - psi.en();
     for (int L = 0; L <= max_L; L++) {
-      double dC_Lkk = CLkk(L, k, wf.basis.at(ie).k);
-      if (dC_Lkk != 0 && wf.basis.at(ie).en() > 0.0) {
+      double dC_Lkk = CLkk(L, k, phi_b.k);
+      if (dC_Lkk != 0 && phi_b.en() > 0.0) {
         // #pragma omp parallel for
         for (std::size_t iq = 0; iq < q_array.size(); iq++) {
           double a = 0.;
           auto maxj = psi.max_pt(); // don't bother going further
-          double af =
-              NumCalc::integrate(1.0, 0, maxj, psi.f(), wf.basis.at(ie).f(),
-                                 jLqr_f[L][iq], wf.rgrid->drdu());
-          double ag =
-              NumCalc::integrate(1.0, 0, maxj, psi.g(), wf.basis.at(ie).g(),
-                                 jLqr_f[L][iq], wf.rgrid->drdu());
+          double af = NumCalc::integrate(1.0, 0, maxj, psi.f(), phi_b.f(),
+                                         jLqr_f[L][iq], wf.rgrid->drdu());
+          double ag = NumCalc::integrate(1.0, 0, maxj, psi.g(), phi_b.g(),
+                                         jLqr_f[L][iq], wf.rgrid->drdu());
           a = af + ag;
 
           K_nk.at(iq).at(ik).at(ie) +=
@@ -336,14 +342,55 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
       }
     }
 
-    basis_energies.at(ik).at(ie) = wf.basis.at(ie).en() - psi.en();
-    // std::cout << "basis_energies = " << basis_energies.at(ik).at(ie)
+    deposited_energy.at(ik).at(ie) = std::max(phi_b.en() - psi.en(), 0.0);
+    // std::cout << "deposited_energy = " << deposited_energy.at(ik).at(ie)
     //<< std::endl;
     ie++;
   }
 
+  auto non_zero = [](double x) { return x > 0.0; };
+  for (int ik = 0; ik < kcount; ik++) {
+    auto first_non_zero_E =
+        std::find_if(deposited_energy.at(ik).begin(),
+                     deposited_energy.at(ik).end(), non_zero);
+    auto dist =
+        std::distance(deposited_energy.at(ik).begin(), first_non_zero_E);
+    std::cout << dist << "\n" << std::flush;
+    deposited_energy.at(ik).erase(deposited_energy.at(ik).begin(),
+                                  deposited_energy.at(ik).begin() + dist);
+
+    for (int iq = 0; iq < K_nk.size(); iq++) {
+      K_nk.at(iq).at(ik).erase(K_nk.at(iq).at(ik).begin(),
+                               K_nk.at(iq).at(ik).begin() + dist);
+      assert(K_nk.at(iq).at(ik).size() == deposited_energy.at(ik).size());
+    }
+  }
+
+  // for (int iq = 0; iq < K_nk.size(); iq++) {
+  //   for (int ik = 0; ik < kcount; ik++) {
+  //
+  //     auto first_non_zero_K = std::find_if(K_nk.at(iq).at(ik).begin(),
+  //                                          K_nk.at(iq).at(ik).end(),
+  //                                          non_zero);
+  //     K_nk.at(iq).at(ik).erase(K_nk.at(iq).at(ik).begin(), first_non_zero_K);
+  //     assert(K_nk.at(iq).at(ik).size() == deposited_energy.at(ik).size());
+  //   }
+  // }
+
+  // K_nk.at(0).at(0).erase(K_nk.at(0).at(0).begin(),
+  //                        K_nk.at(0).at(0).begin() + 5);
+  // deposited_energy.at(0).erase(deposited_energy.at(0).begin(),
+  //                              deposited_energy.at(0).begin() + 5);
+
+  // std::ofstream data;
+  // data.open("K_0.txt");
+  // for (auto ie = 0; ie < K_nk.at(0).at(0).size(); ie++) {
+  //   data << deposited_energy.at(0).at(ie) << ' ' << K_nk.at(0).at(0).at(ie)
+  //        << std::endl;
+  // }
+
   std::vector<double> E_interp_grid;
-  E_interp_grid = AKF::LinVect(ea, eb, Npoints);
+  E_interp_grid = AKF::LinVect(dEa, dEb, Npoints);
   std::vector<std::vector<double>> K_interp_sum(
       q_array.size(), std::vector<double>(E_interp_grid.size()));
   std::vector<std::vector<double>> K_interp(
@@ -352,15 +399,23 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
   for (int knum = 0; knum < kcount; knum++) {
     for (size_t qnum = 0; qnum < q_array.size(); qnum++) {
       K_interp.at(qnum) = Interpolator::interpolate(
-          basis_energies.at(knum), K_nk.at(qnum).at(knum), E_interp_grid);
+          deposited_energy.at(knum), K_nk.at(qnum).at(knum), E_interp_grid);
       for (int en_num = 0; en_num < bas_num; en_num++) {
         K_interp_sum.at(qnum).at(en_num) += K_interp.at(qnum).at(en_num);
       }
     }
+    // if (knum == 0) {
+    //   // std::ofstream data2;
+    //   // data2.open("K_1.txt");
+    //   // for (auto ie = 0; ie < E_interp_grid.size(); ie++) {
+    //   //   data2 << E_interp_grid.at(ie) << ' ' << K_interp.at(0).at(ie)
+    //   //         << std::endl;
+    //   }
+    //}
   }
 
   return K_interp_sum;
-}
+} // namespace AKF
 
 //******************************************************************************
 int calculateKpw_nk(const Wavefunction &wf, std::size_t nk, double dE,

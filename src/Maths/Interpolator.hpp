@@ -13,7 +13,7 @@ namespace Interpolator {
 //! @brief Interpolates {xin,yin} onto {xout}
 //! @details Takes set of points {xin, yin}, interpolates and evaluates new y
 //! values at positions defined by {x_out}; returns as vector.
-//!  - NOTE: Interpolates, but does NOT extrapolate! Everything outseide the
+//!  - NOTE: Interpolates, but does NOT extrapolate! Everything outside the
 //!  region (xmin,xmax)_in will be zero
 inline std::vector<double> interpolate(const std::vector<double> &x_in,
                                        const std::vector<double> &y_in,
@@ -31,7 +31,7 @@ inline std::vector<double> interpolate(const std::vector<double> &x_in,
   // Do Interpolation using cubic splines
   gsl_interp_accel *acc = gsl_interp_accel_alloc();
   gsl_spline *spline =
-      gsl_spline_alloc(gsl_interp_cspline, x_in.size());    // dim_in);
+      gsl_spline_alloc(gsl_interp_steffen, x_in.size());    // dim_in);
   gsl_spline_init(spline, &x_in[0], &y_in[0], x_in.size()); // dim_in);
 
   auto xmin = x_in.front();

@@ -22,7 +22,7 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   const bool do_basis = input.get("do_basis", true);
   const bool energy_dependent = input.get("energy_dependent", true);
 
-  const int Npoints = (int)wf.basis.size(); // input.get("Npoints", 1);
+  const int Npoints = input.get("Npoints", 1);
   [[maybe_unused]] const double dE = input.get("dE", 0);
   const double dEa = input.get("dEa", 0);
   const double dEb = input.get("dEb", 0);
@@ -101,7 +101,7 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
           K_nk = AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
           for (std::size_t i = 0; i < q_size; i++) {
             K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
-            std::cout << K_prime.at(i) << std::endl;
+            // std::cout << K_prime.at(i) << std::endl;
           }
         }
         for (std::size_t i = 0; i < q_size; i++) {
@@ -122,9 +122,12 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
       if (wf.core[j].n == core_n && wf.core[j].k == core_k) {
         if (do_finite_diff == true) {
           for (std::size_t k = 0; k < E_array.size(); k++) {
-            K_nk = AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
-            for (std::size_t i = 0; i < q_size; i++) {
-              K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
+            if (k == 50) {
+              K_nk =
+                  AKF::calculateK_nk(wf, j, max_L, E_array[k], jLqr_f, q_size);
+              for (std::size_t i = 0; i < q_size; i++) {
+                K_prime[i] = K_prime[i] + K_nk[i] * deltaE;
+              }
             }
           }
         }
@@ -171,9 +174,10 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
           K_energy = AKF::basisK_energy(wf, j, max_L, dEa, dEb, jLqr_f, q_array,
                                         Npoints);
           for (std::size_t iq = 0; iq < q_size; iq++) {
-            K_en_sum.at(iq) = 0.0;
-            for (auto K_en : K_energy.at(iq)) {
-              K_en_single.at(iq) += K_en * std::abs(deltaE);
+            for (auto ie = 0; ie <= Npoints; ie++) {
+              if (ie == 50) {
+                K_en_single.at(iq) += K_energy.at(iq).at(ie) * std::abs(deltaE);
+              }
             }
           }
         }
@@ -181,16 +185,33 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
     }
   }
 
-  // data ouput
-  std::ofstream data;
-  data.open("K_all.txt");
-  for (std::size_t j = 0; j < q_array.size(); j++) {
-    data << q_array[j] / AUMEV << ' ' << K_prime.at(j) << ' '
-         << K_basis_single.at(j) << ' ' << std::abs(K_en_single.at(j)) << ' '
-         << K_sum.at(j) << ' ' << K_bsum.at(j) << ' '
-         << std::abs(K_en_sum.at(j)) << '\n';
+  std::vector<double> K_wrt_E(Npoints, 0);
+  for (int ie = 0; ie < Npoints; ie++) {
+    for (std::size_t iq = 0; iq < q_size; iq++) {
+      K_wrt_E.at(ie) = K_wrt_E.at(ie) + K_energy.at(iq).at(ie);
+    }
+    // std::cout << K_wrt_E.at(ie) << std::endl;
   }
-  data.close();
+
+  // std::ofstream data1;
+  // data1.open("K_all.txt");
+  // for (int j = 0; j < Npoints; j++) {
+  //   data1 << E_array.at(j) << ' ' << 0 << ' ' << 0 << ' '
+  //         << std::abs(K_wrt_E.at(j)) << ' ' << 0 << ' ' << 0 << ' ' << 0
+  //         << std::endl;
+  // }
+  // data1.close();
+
+  // data ouput
+  std::ofstream data2;
+  data2.open("K_all.txt");
+  for (std::size_t j = 0; j < q_array.size(); j++) {
+    data2 << q_array[j] / AUMEV << ' ' << K_prime.at(j) << ' '
+          << K_basis_single.at(j) << ' ' << std::abs(K_en_single.at(j)) << ' '
+          << K_sum.at(j) << ' ' << K_bsum.at(j) << ' '
+          << std::abs(K_en_sum.at(j)) << '\n';
+  }
+  data2.close();
 
   // // Calculate sum of differences between two methods
   // std::ofstream data2;
