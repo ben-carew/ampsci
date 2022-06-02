@@ -279,7 +279,7 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
       break;
     ++kcount;
   }
-  std::cout << "k = " << kcount << "; bas_num = " << bas_num << '\n';
+  //std::cout << "k = " << kcount << "; bas_num = " << bas_num << '\n';
 
   auto &psi = wf.core[is];
 
@@ -293,14 +293,14 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
 
   std::vector<std::vector<double>> deposited_energy(
       kcount, std::vector<double>(bas_num));
-  std::cout << "deposited_energy has dimensions: " << deposited_energy.size()
-            << " x " << deposited_energy.at(0).size() << std::endl;
+  // std::cout << "deposited_energy has dimensions: " << deposited_energy.size()
+  //           << " x " << deposited_energy.at(0).size() << std::endl;
   std::vector<std::vector<std::vector<double>>> K_nk(
       q_array.size(),
       std::vector<std::vector<double>>(kcount, std::vector<double>(bas_num)));
-  std::cout << "K_nk has dimensions: " << K_nk.size() << " x "
-            << K_nk.at(0).size() << " x " << K_nk.at(0).at(0).size()
-            << std::endl;
+  // std::cout << "K_nk has dimensions: " << K_nk.size() << " x "
+  //           << K_nk.at(0).size() << " x " << K_nk.at(0).at(0).size()
+  //           << std::endl;
 
   double prev_en = 0.0;
   double delta_E;
@@ -308,7 +308,6 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
   int ik_old = -1;
   for (std::size_t ecount = 0; ecount < wf.basis.size(); ecount++) {
     const auto &phi_b = wf.basis.at(ecount);
-    const auto &phi_bn = wf.basis.at(ecount);
     if (ecount % bas_num == 0) {
       ie = 0;
       prev_en = 0.0;
@@ -336,7 +335,7 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
 
           K_nk.at(iq).at(ik).at(ie) +=
               (dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf) /
-              std::abs(delta_E);
+              (std::abs(delta_E) + 0.1);
           // std::cout << "K_nk = " << K_nk.at(iq).at(ik).at(ie) << '\n';
         }
       }
@@ -355,7 +354,7 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
                      deposited_energy.at(ik).end(), non_zero);
     auto dist =
         std::distance(deposited_energy.at(ik).begin(), first_non_zero_E);
-    std::cout << dist << "\n" << std::flush;
+    //std::cout << dist << "\n" << std::flush;
     deposited_energy.at(ik).erase(deposited_energy.at(ik).begin(),
                                   deposited_energy.at(ik).begin() + dist);
 
