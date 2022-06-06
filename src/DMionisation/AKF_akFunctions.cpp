@@ -222,14 +222,12 @@ basisK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
 
   int k = psi.k; // wf.ka(is);
 
-  int qsteps = (int)jLqr_f[0].size();
+  int qsteps = (int)jLqr_f.at(0).size();
 
-  // Calculate continuum wavefunctions
   double ea = dEa + wf.core[is].en();
   double eb = dEb + wf.core[is].en();
 
   double x_ocf = psi.occ_frac(); // occupancy fraction. Usually 1
-
   // Generate AK for each L, lc, and q
   // L and lc are summed, not stored individually
   for (int L = 0; L <= max_L; L++) {
@@ -250,7 +248,7 @@ basisK_nk(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
           double ag = NumCalc::integrate(1.0, 0, maxj, psi.g(), phic.g(),
                                          jLqr_f[L][iq], wf.rgrid->drdu());
           a = af + ag;
-          K_nk[iq] += (dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf);
+          K_nk.at(iq) += (dC_Lkk * std::pow(a * wf.rgrid->du(), 2) * x_ocf);
         } // q
       }   // end if ea < phic.en < eb
     }     // END loop over cntm states (ic)
@@ -279,7 +277,7 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
       break;
     ++kcount;
   }
-  //std::cout << "k = " << kcount << "; bas_num = " << bas_num << '\n';
+  // std::cout << "k = " << kcount << "; bas_num = " << bas_num << '\n';
 
   auto &psi = wf.core[is];
 
@@ -323,7 +321,7 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
     for (int L = 0; L <= max_L; L++) {
       double dC_Lkk = CLkk(L, k, phi_b.k);
       if (dC_Lkk != 0 && phi_b.en() > 0.0) {
-        // #pragma omp parallel for
+#pragma omp parallel for
         for (std::size_t iq = 0; iq < q_array.size(); iq++) {
           double a = 0.;
           auto maxj = psi.max_pt(); // don't bother going further
@@ -354,32 +352,16 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
                      deposited_energy.at(ik).end(), non_zero);
     auto dist =
         std::distance(deposited_energy.at(ik).begin(), first_non_zero_E);
-    //std::cout << dist << "\n" << std::flush;
+    // std::cout << dist << "\n" << std::flush;
     deposited_energy.at(ik).erase(deposited_energy.at(ik).begin(),
                                   deposited_energy.at(ik).begin() + dist);
 
-    for (int iq = 0; iq < K_nk.size(); iq++) {
+    for (std::size_t iq = 0; iq < K_nk.size(); iq++) {
       K_nk.at(iq).at(ik).erase(K_nk.at(iq).at(ik).begin(),
                                K_nk.at(iq).at(ik).begin() + dist);
       assert(K_nk.at(iq).at(ik).size() == deposited_energy.at(ik).size());
     }
   }
-
-  // for (int iq = 0; iq < K_nk.size(); iq++) {
-  //   for (int ik = 0; ik < kcount; ik++) {
-  //
-  //     auto first_non_zero_K = std::find_if(K_nk.at(iq).at(ik).begin(),
-  //                                          K_nk.at(iq).at(ik).end(),
-  //                                          non_zero);
-  //     K_nk.at(iq).at(ik).erase(K_nk.at(iq).at(ik).begin(), first_non_zero_K);
-  //     assert(K_nk.at(iq).at(ik).size() == deposited_energy.at(ik).size());
-  //   }
-  // }
-
-  // K_nk.at(0).at(0).erase(K_nk.at(0).at(0).begin(),
-  //                        K_nk.at(0).at(0).begin() + 5);
-  // deposited_energy.at(0).erase(deposited_energy.at(0).begin(),
-  //                              deposited_energy.at(0).begin() + 5);
 
   // std::ofstream data;
   // data.open("K_0.txt");
@@ -399,18 +381,18 @@ basisK_energy(const Wavefunction &wf, std::size_t is, int max_L, double dEa,
     for (size_t qnum = 0; qnum < q_array.size(); qnum++) {
       K_interp.at(qnum) = Interpolator::interpolate(
           deposited_energy.at(knum), K_nk.at(qnum).at(knum), E_interp_grid);
-      for (int en_num = 0; en_num < bas_num; en_num++) {
+      for (int en_num = 0; en_num < Npoints; en_num++) {
         K_interp_sum.at(qnum).at(en_num) += K_interp.at(qnum).at(en_num);
       }
     }
     // if (knum == 0) {
-    //   // std::ofstream data2;
-    //   // data2.open("K_1.txt");
-    //   // for (auto ie = 0; ie < E_interp_grid.size(); ie++) {
-    //   //   data2 << E_interp_grid.at(ie) << ' ' << K_interp.at(0).at(ie)
-    //   //         << std::endl;
+    //   std::ofstream data2;
+    //   data2.open("K_1.txt");
+    //   for (auto ie = 0; ie < E_interp_grid.size(); ie++) {
+    //     data2 << E_interp_grid.at(ie) << ' ' << K_interp_sum.at(0).at(ie)
+    //           << std::endl;
     //   }
-    //}
+    // }
   }
 
   return K_interp_sum;
@@ -452,7 +434,6 @@ int calculateKpw_nk(const Wavefunction &wf, std::size_t nk, double dE,
 }
 
 //******************************************************************************
-
 std::vector<std::vector<std::vector<double>>>
 sphericalBesselTable(int max_L, const std::vector<double> &q_array,
                      const std::vector<double> &r) {
@@ -461,7 +442,6 @@ sphericalBesselTable(int max_L, const std::vector<double> &q_array,
   sphericalBesselTable(jLqr_f, max_L, q_array, r);
   return jLqr_f;
 }
-
 void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
                           int max_L, const std::vector<double> &q_array,
                           const std::vector<double> &r)
@@ -475,11 +455,9 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
   int qsteps = (int)q_array.size();
   jLqr_f.resize(max_L + 1, std::vector<std::vector<double>>(
                                qsteps, std::vector<double>(num_points)));
-
   std::ofstream data;
   data.open("jLqr.txt");
   data << max_L << ' ' << qsteps << ' ' << num_points << std::endl;
-
   for (int L = 0; L <= max_L; L++) {
     std::cout << "\rCalculating spherical Bessel look-up table for L=" << L
               << "/" << max_L << " .. " << std::flush;
@@ -519,7 +497,7 @@ void sphericalBesselTable(std::vector<std::vector<std::vector<double>>> &jLqr_f,
 
 std::vector<double> LogVect(double min, double max, int num_points) {
   double logarithmicBase = 2.71;
-  double logMin = min; // log(min);
+  double logMin = log(min); // log(min);
   double logMax = log(max);
   double delta = (logMax - logMin) / num_points;
   double accDelta = 0;

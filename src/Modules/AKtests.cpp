@@ -21,7 +21,6 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   const bool do_finite_diff = input.get("do_finite_diff", false);
   const bool do_basis = input.get("do_basis", true);
   const bool energy_dependent = input.get("energy_dependent", true);
-  const bool dmX = input.get("dmX", true);
 
   const int Npoints = input.get("Npoints", 1);
   [[maybe_unused]] const double dE = input.get("dE", 0);
@@ -31,8 +30,16 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   auto E_array = AKF::LinVect(dEa, dEb, Npoints);
 
   const int n = input.get("q_n", 200);
-  double q_min = 0.001;
-  double q_max = 1000;
+  const double v = input.get("v_chi", 500000);
+  const double m = 1.7827e-27; // 1 GeV
+  const double E = 1.6022e-16; // 1 keV
+  double q_min = AUMEV * (1000 / 5.3444e-19) *
+                 (m * v - sqrt(pow(m, 2) * pow(v, 2) - 2 * m * E));
+  double q_max = AUMEV * (1000 / 5.3444e-19) *
+                 (m * v + sqrt(pow(m, 2) * pow(v, 2) - 2 * m * E));
+  // q_min = 0.001;
+  // q_max = 1000;
+  std::cout << "q_min = " << q_min << ", q_max = " << q_max << '\n';
   auto q_array = AKF::LogVect(q_min, q_max, n);
   const size_t q_size = q_array.size();
   const size_t k_size = wf.core.size();
@@ -48,6 +55,7 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   std::vector<double> K_en_single(q_size);
   std::vector<double> K_en_sum(q_size);
   std::vector<std::vector<double>> K_energy;
+  std::vector<double> K_wrt_E(Npoints, 0);
   std::vector<std::vector<double>> K_E_sum(q_size,
                                            std::vector<double>(Npoints));
   std::vector<std::vector<std::vector<double>>> K_enq(
@@ -56,35 +64,43 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
 
   std::vector<std::vector<std::vector<double>>> jLqr_f;
 
+  // user input, choose to recalculate jLqr or to read in from file
   if (calc_j == true) {
     jLqr_f = AKF::sphericalBesselTable(max_L, q_array, r);
   } else {
     int L, iq, ir;
     char delim = ' ';
+    // ensure the jLqr array has correct dimensions
     jLqr_f.resize(max_L + 1, std::vector<std::vector<double>>(
                                  q_size, std::vector<double>(r_size)));
     std::string line;
     std::string L_check;
     std::string q_check;
     std::string r_check;
+    // open saved spherical Bessel data
     std::ifstream data_in;
     data_in.open("jLqr.txt");
     if (data_in.is_open()) {
       getline(data_in, L_check, delim);
       getline(data_in, q_check, delim);
       getline(data_in, r_check, delim);
+      // check that size of energy and momentum grids and max_L haven't changed
       if (max_L == std::stoi(L_check) && (int)q_size == std::stoi(q_check) &&
           (int)r_size == std::stoi(r_check)) {
         std::cout << "Reading jLqr..." << std::endl;
+        // read in data from text file to array
         for (int l = 1; l < (max_L + 1) * (int)(q_size) * (int)(r_size); l++) {
+          std::cout << __LINE__ << std::endl;
           getline(data_in, line, delim);
           L = std::stoi(line);
+          std::cout << __LINE__ << '\n';
           getline(data_in, line, delim);
           iq = std::stoi(line);
           getline(data_in, line, delim);
           ir = std::stoi(line);
           getline(data_in, line);
           jLqr_f[L][iq][ir] = std::stod(line);
+          std::cout << __LINE__ << std::endl;
           // std::cout << l << ' ' << L << ' ' << iq << ' ' << ir << ' '
           //           << jLqr_f[L][iq][ir] << '\n';
         }
@@ -92,6 +108,7 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
       } else {
         std::cout << "Error: jLqr is of wrong size, need to recalculate."
                   << std::endl;
+        // exit the code if jLqr is of wrong dimensions
         exit(1);
       }
     }
@@ -113,6 +130,7 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
         for (std::size_t i = 0; i < q_size; i++) {
           K_sum[i] = K_prime[i] + K_sum[i];
         }
+        std::fill(K_prime.begin(), K_prime.end(), 0);
       }
       if (do_basis == true) {
         std::cout << "Calculating with basis states" << std::endl;
@@ -122,7 +140,6 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
         }
       }
     }
-    std::fill(K_prime.begin(), K_prime.end(), 0);
   } else {
     // calculate single orbitals
     for (std::size_t j = 0; j < k_size; ++j) {
@@ -159,17 +176,16 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
   }
 
   if (energy_dependent == true) {
-    // make K_basis dependent on E.
     std::cout << "Calculating with basis states" << std::endl;
     if (sum == true) {
       for (std::size_t j = 0; j < k_size; ++j) {
-        // if (wf.core[j].n == core_n && wf.core[j].k == core_k) {
         K_energy = AKF::basisK_energy(wf, j, max_L, dEa, dEb, jLqr_f, q_array,
                                       Npoints);
         for (std::size_t iq = 0; iq < K_energy.size(); iq++) {
           for (std::size_t ie = 0; ie < K_energy.at(iq).size(); ie++) {
             K_E_sum.at(iq).at(ie) += K_energy.at(iq).at(ie);
             K_en_sum.at(iq) += K_E_sum.at(iq).at(ie);
+            K_enq.at(ie).at(j).at(iq) = K_energy.at(iq).at(ie);
           }
         }
       }
@@ -178,43 +194,33 @@ void AKtests(const IO::InputBlock &input, const Wavefunction &wf) {
         if (wf.core[j].n == core_n && wf.core[j].k == core_k) {
           K_energy = AKF::basisK_energy(wf, j, max_L, dEa, dEb, jLqr_f, q_array,
                                         Npoints);
+          std::cout << "K_energy is " << K_energy.size() << " x "
+                    << K_energy.at(0).size() << std::endl;
           for (std::size_t iq = 0; iq < q_size; iq++) {
             for (auto ie = 0; ie < Npoints; ie++) {
               K_en_single.at(iq) += K_energy.at(iq).at(ie) * std::abs(deltaE);
+              K_enq.at(ie).at(j).at(iq) = K_energy.at(iq).at(ie);
             }
           }
         }
       }
     }
-  }
 
-  if (dmX == true) {
     const std::string fname = "ak-Xe_test";
     std::vector<std::string> nklst(k_size);
     for (std::size_t j = 0; j < k_size; ++j) {
       nklst.at(j) = wf.core.at(j).symbol();
     }
-
-    for (std::size_t j = 0; j < k_size; ++j) {
-      K_energy =
-          AKF::basisK_energy(wf, j, max_L, dEa, dEb, jLqr_f, q_array, Npoints);
-      for (auto ie = 0; ie < Npoints; ie++) {
-        for (std::size_t iq = 0; iq < q_size; iq++) {
-          K_enq.at(ie).at(j).at(iq) = K_energy.at(iq).at(ie);
-        }
-      }
-    }
     AKF::akReadWrite(fname, true, K_enq, nklst, q_min, q_max, dEa, dEb);
-  }
 
-  std::vector<double> K_wrt_E(Npoints, 0);
-  for (int ie = 0; ie < Npoints; ie++) {
-    for (std::size_t iq = 0; iq < 1; iq++) {
-      //  K_wrt_E.at(ie) += K_E_sum.at(iq).at(ie) * q_array.at(iq);
-      K_wrt_E.at(ie) +=
-          K_energy.at(iq).at(ie) * q_array.at(iq) * q_array.at(iq);
+    for (int ie = 0; ie < Npoints; ie++) {
+      for (std::size_t iq = 0; iq < 1; iq++) {
+        //  K_wrt_E.at(ie) += K_E_sum.at(iq).at(ie) * q_array.at(iq);
+        K_wrt_E.at(ie) +=
+            K_energy.at(iq).at(ie) * q_array.at(iq) * q_array.at(iq);
+      }
+      // std::cout << K_wrt_E.at(ie) << std::endl;
     }
-    // std::cout << K_wrt_E.at(ie) << std::endl;
   }
 
   std::ofstream data1;

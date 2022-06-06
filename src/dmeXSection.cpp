@@ -546,7 +546,7 @@ Optionally further integrates into energy bins
           // if (ieB >= desteps)
           //   break;
           double dEdu = Egrid.drdu()[ie]; // r[ie];
-          Rate += double(dSdE_mv_mx_E[imv][imx][ie]) * dEdu;
+          Rate += dSdE_mv_mx_E[imv][imx][ie] * dEdu;
           // nb: E is from Jacobian; * dE/E below
         }
         Rate *= Egrid.du() / wEbin;
@@ -1055,7 +1055,7 @@ int main(int argc, char *argv[]) {
   printf("v :%6.2f -> %6.2fkm/s, N=%4i\n", dv * V_to_kms, max_v * V_to_kms,
          (int)vsteps);
   printf("Mx:%6.2f -> %6.2f GeV, N=%4i\n", mxmin * M_to_GeV, mxmax * M_to_GeV,
-         (int)n_mx);
+         n_mx);
   switch (mediator) {
   case Mediator::light:
     std::cout << "Ultra-light meadiator (F_x = q^-2)\n";
